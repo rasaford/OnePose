@@ -52,6 +52,11 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
     if osp.exists(vis_box_dir):
         os.system(f"rm -rf {vis_box_dir}")
     os.makedirs(vis_box_dir, exist_ok=True)
+
+    # save poses
+    out_pose_dir = osp.join(data_dir, "out_poses")
+    os.makedirs(out_pose_dir, exist_ok=True)
+
     demo_video_path = osp.join(data_dir, "demo_video.mp4")
 
     intrin_full_path = osp.join(data_dir, "intrinsics.txt")
@@ -68,6 +73,7 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
         "vis_detector_dir": vis_detector_dir,
         "det_box_vis_video_path": det_box_vis_video_path,
         "demo_video_path": demo_video_path,
+        "out_pose_dir": out_pose_dir
     }
     return img_lists, paths
 
@@ -309,6 +315,10 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
             draw_box=len(inliers) > 6,
             save_path=osp.join(paths["vis_box_dir"], f"{id}.jpg"),
         )
+
+        # pose T_co (object to camera)
+        np.savetxt(osp.join(paths["out_pose_dir"], f"{id}.txt"), pose_opt)
+
 
     # Output video to visualize estimated poses:
     vis_utils.make_video(paths["vis_box_dir"], paths["demo_video_path"])

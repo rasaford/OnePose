@@ -1,0 +1,6 @@
+DeepLM
+__pycache__
+.hydra
+*.mp4
+*.log
+data/

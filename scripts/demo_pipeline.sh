@@ -1,6 +1,8 @@
 #!/bin/bash
 PROJECT_DIR="$(pwd)"
 OBJ_NAME=$1
+source "$PROJECT_DIR/.env"
+
 echo "Current work dir: $PROJECT_DIR"
 
 echo '-------------------'
@@ -38,3 +40,10 @@ python $PROJECT_DIR/inference_demo.py \
     input.data_dirs="$PROJECT_DIR/data/demo/$OBJ_NAME $OBJ_NAME-test" \
     input.sfm_model_dirs="$PROJECT_DIR/data/demo/$OBJ_NAME/sfm_model" \
     use_tracking=${WITH_TRACKING}
+
+
+python ./inference_demo.py \
+    +experiment="test_demo" \
+    input.data_dirs="$PWD/data/demo/test_coffee test_coffee-test" \
+    input.sfm_model_dirs="./data/demo/test_coffee/sfm_model" \
+    use_tracking=True

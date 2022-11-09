@@ -31,6 +31,11 @@ Download the [pretrained OnePose model](https://drive.google.com/drive/folders/1
 [Optional] To run OnePose with tracking modeule, pelase install [DeepLM](https://github.com/hjwdzh/DeepLM.git).
 Please make sure the sample program in `DeepLM` can be correctly executed to ensure successful installation.
 
+Install it with:
+```bash
+. ./install_ext.sh
+```
+
 
 Execute the following commands, and a demo video naming `demo_video.mp4` will be saved in the folder of the test sequence.
 ```shell

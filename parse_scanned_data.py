@@ -23,6 +23,9 @@ def get_arkit_default_path(data_dir):
     pose_file = osp.join(data_dir, 'ARposes.txt')
     assert Path(pose_file).exists()
 
+    out_cam_pose_dir = osp.join(data_dir, 'cam_poses')
+    Path(out_cam_pose_dir).mkdir(parents=True, exist_ok=True)
+
     reproj_box_dir = osp.join(data_dir, 'reproj_box')
     Path(reproj_box_dir).mkdir(parents=True, exist_ok=True)
     out_box_dir = osp.join(data_dir, 'bbox')
@@ -48,6 +51,7 @@ def get_arkit_default_path(data_dir):
         'out_3D_box_dir': out_3D_box_dir,
         'reproj_box_dir': reproj_box_dir,
         'out_pose_dir': out_pose_dir,
+        'out_cam_pose_dir': out_cam_pose_dir,
         'orig_intrin_file': orig_intrin_file,
         'final_intrin_file': final_intrin_file,
         'intrin_dir': intrin_dir,
@@ -224,6 +228,7 @@ def data_process_anno(data_dir, downsample_rate=1, hw=512):
                 T_wc = np.linalg.inv(T_cw)
                 T_oc = T_wc @ T_ow
                 pose_save_path = osp.join(paths['out_pose_dir'], '{}.txt'.format(index))
+                cam_pose_save_path = osp.join(paths["out_cam_pose_dir"], "{}.txt".format(index))
                 box_save_path = osp.join(paths['reproj_box_dir'], '{}.txt'.format(index))
                 reproj_box3d = reproj(K_homo, T_oc, bbox_3d_homo.T)
 
@@ -235,6 +240,7 @@ def data_process_anno(data_dir, downsample_rate=1, hw=512):
 
                 np.savetxt(pose_save_path, T_oc)
                 np.savetxt(box_save_path, reproj_box3d)
+                np.savetxt(cam_pose_save_path, T_cw)
             index += 1
 
     parse_video(paths, downsample_rate, bbox_3d_homo, hw=hw)
