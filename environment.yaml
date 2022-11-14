@@ -4,11 +4,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.9
+  - python=3.8 # need to keep this at 3.8 since pydegensac does not work on 3.9
   - pytorch=1.12.1
   - torchvision=0.13.1
   - torchaudio=0.12.1
-  - cudatoolkit=10.2
+  - cudatoolkit=11.6
   - ipython
   - tqdm
   - matplotlib
@@ -19,7 +19,7 @@ dependencies:
   - conda-forge::scipy
   - conda-forge::numba
   - conda-forge::ipdb
-  - conda-forge::albumentations=0.5.1
+  - conda-forge::colmap
   - pip
   - pip:
     - -r requirements.txt

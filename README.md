@@ -30,7 +30,25 @@ sh ./scripts/prepare_2D_matching_resources.sh
 ```
 
 [COLMAP](https://colmap.github.io/) is used in this project for Structure-from-Motion. 
-Please refer to the official [instructions](https://colmap.github.io/install.html) for the installation.
+It is automatically be installed in the above conda environment.
+
+The DeepLM module is required for bundle adjustment. Install it using the following commands:
+
+```bash
+git submodule update --init --recursive
+. ./install_ext.sh
+
+```
+
+Since DeepLM needs to be sourced directly into the workspace, the `$PYTHONPATH` environment variable needs to be changed
+appropriately. We provide a `.env` file which **needs to be sourced in each new shell executing OnePose**.
+```bash
+source .env
+```
+To verify that everything was installed correctly run the command below. It should not report any errors
+```bash
+python -c "from DeepLM.TorchLM.solver import Solve"
+```
 
 [Optional, WIP] You may optionally try out our web-based 3D visualization tool [Wis3D](https://github.com/zju3dv/Wis3D) for convenient and interactive visualizations of feature matches. We also provide many other cool visualization features in Wis3D, welcome to try it out.
 
@@ -38,6 +56,8 @@ Please refer to the official [instructions](https://colmap.github.io/install.htm
 # Working in progress, should be ready very soon, only available on test-pypi now.
 pip install -i https://test.pypi.org/simple/ wis3d
 ```
+
+
 
 ## Training and Evaluation on OnePose dataset
 ### Dataset setup 

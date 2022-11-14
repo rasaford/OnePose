@@ -1,5 +1,4 @@
 # do not specify a shell here to keep the current conda environment active
-git clone https://github.com/hjwdzh/DeepLM.git
 
 # taken from DeelLM/example.sh (hidden build instructions arrgh!!)
 cd DeepLM
