@@ -1,7 +1,10 @@
 pytorch-lightning==1.5.10
 aiohttp==3.7
 aioredis==1.3.1
-pydegensac==0.1.2
+# This is not used within pytracking at the moment and is therefore disabled
+# Enabling this forces the python version to <=3.8 as per
+# https://github.com/ducha-aiki/pydegensac/issues/15
+# pydegensac==0.1.2
 opencv_python==4.4.0.46
 yacs>=0.1.8
 einops==0.3.0
