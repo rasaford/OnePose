@@ -111,9 +111,9 @@ class BATracker:
         return translation_distance, angular_distance
 
     def kpt_flow_track(self, im_kf, im_query, kpt2d_last):
-        lk_params = dict(winSize=(15, 15),
-                         maxLevel=2,
-                         criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+        lk_params = dict(winSize=(21, 21),
+                         maxLevel=5,
+                         criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.01))
 
         # kpt_last = np.array(, dtype=np.float32)
         kpt_last = np.expand_dims(kpt2d_last, axis=1)

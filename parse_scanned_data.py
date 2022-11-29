@@ -222,7 +222,7 @@ def data_process_anno(data_dir, downsample_rate=1, hw=512):
                     [0, -1,  0],
                     [0,  0, -1]
                 ])
-
+                # OnePose writes poses as T_{from}{to} instead of T_{to}{from}
                 T_ow = parse_box(paths['box_path'])
                 T_cw = affines.compose(position, rot_mat, np.ones(3))
                 T_wc = np.linalg.inv(T_cw)

@@ -132,7 +132,7 @@ def sfm_core(cfg, img_lists, outputs_dir_root):
         # Extract image features, construct image pairs and then match:
         extract_features.main(img_lists, feature_out, cfg)
         pairs_from_poses.covis_from_pose(img_lists, covis_pairs_out, cfg.sfm.covis_num, max_rotation=cfg.sfm.rotation_thresh)
-        match_features.main(cfg, feature_out, covis_pairs_out, matches_out, vis_match=False)
+        match_features.main(cfg, feature_out, covis_pairs_out, matches_out, vis_match=True)
 
         # Reconstruct 3D point cloud with known image poses:
         generate_empty.generate_model(img_lists, empty_dir)
@@ -158,6 +158,9 @@ def postprocess(cfg, img_lists, root_dir, outputs_dir_root):
     xyzs, points_idxs = filter_points.filter_3d(model_path, track_length, bbox_path)
     # Merge 3d points by distance between points
     merge_xyzs, merge_idxs = filter_points.merge(xyzs, points_idxs, dist_threshold=1e-3) 
+
+    # visualize the feature points on the image sequence
+    
 
     # Save features of the filtered point cloud:
     feature_process.get_kpt_ann(cfg, img_lists, feature_out, outputs_dir, merge_idxs, merge_xyzs)

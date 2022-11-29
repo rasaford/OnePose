@@ -15,7 +15,7 @@ def record_eval_result(out_dir, obj_name, seq_name, eval_result):
     f.close()
 
 
-def ransac_PnP(K, pts_2d, pts_3d, scale=1):
+def ransac_PnP(K, pts_2d, pts_3d, scale=1, initial_pose=None):
     """ solve pnp """
     dist_coeffs = np.zeros(shape=[8, 1], dtype='float64')
     
@@ -25,7 +25,15 @@ def ransac_PnP(K, pts_2d, pts_3d, scale=1):
     
     pts_3d *= scale
     try:
+
+        rvec, tvec = None, None
+        if initial_pose is not None:
+            # rvec and tvec need to both be of shape (3, 1) otherwise opencv
+            # complains about them not being a cv::Mat*
+            rvec, _ = cv2.Rodrigues(initial_pose[:3, :3])
+            tvec = initial_pose[:3, 3].reshape(3, 1) 
         _, rvec, tvec, inliers = cv2.solvePnPRansac(pts_3d, pts_2d, K, dist_coeffs, reprojectionError=5,
+                                                    rvec=rvec, tvec=tvec,
                                                     iterationsCount=10000, flags=cv2.SOLVEPNP_EPNP)
 
         rotation = cv2.Rodrigues(rvec)[0]
@@ -37,8 +45,8 @@ def ransac_PnP(K, pts_2d, pts_3d, scale=1):
         inliers = [] if inliers is None else inliers
 
         return pose, pose_homo, inliers
-    except cv2.error:
-        print("CV ERROR")
+    except cv2.error as e:
+        print("PnP ERROR", e)
         return np.eye(4)[:3], np.eye(4), []
 
 

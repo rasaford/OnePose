@@ -129,7 +129,7 @@ def make_matching_plot(
 
 def make_matching_plot_fast(image0, image1, kpts0, kpts1,
                             mkpts0, mkpts1, color, text,
-                            margin=10, show_keypoints=True, num_matches_to_show=None):
+                            margin=10, show_keypoints=True, num_matches_to_show=None, vis_path=None):
     """draw matches in two images"""
     H0, W0 = image0.shape
     H1, W1 = image1.shape
@@ -171,14 +171,17 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1,
                     1.0*scale, text_color_bg, 3, cv2.LINE_AA)
         cv2.putText(out, t, (int(8*scale), Ht*(i+1)), cv2.FONT_HERSHEY_DUPLEX,
                     1.0*scale, text_color_fg, 1, cv2.LINE_AA)
-        
-    cv2.namedWindow('vis', 0)
-    cv2.resizeWindow('vis', 800, 800)
-    cv2.imshow('vis', out)
-    cv2.waitKey(0)
+
+    if vis_path is not None:    
+        cv2.imwrite(vis_path, out)
+    else:
+        cv2.namedWindow('vis', 0)
+        cv2.resizeWindow('vis', 800, 800)
+        cv2.imshow('vis', out)
+        cv2.waitKey(0)
 
 
-def vis_match_pairs(pred, feats0, feats1, name0, name1):
+def vis_match_pairs(pred, feats0, feats1, name0, name1, vis_dir=None):
     """vis matches on two images"""
     import matplotlib.cm as cm
 
@@ -189,6 +192,12 @@ def vis_match_pairs(pred, feats0, feats1, name0, name1):
     image0 = cv2.cvtColor(image0, cv2.COLOR_RGB2GRAY)
     image1 = cv2.imread(image1_path)
     image1 = cv2.cvtColor(image1, cv2.COLOR_RGB2GRAY)
+
+    vis_path = None
+    if vis_dir is not None:
+        vis_path = osp.join(
+            vis_dir,
+            f"{osp.basename(image0_path).split('.')[0]}-{osp.basename(image1_path).split('.')[0]}.png")
     
     matches = pred['matches0'][0].detach().cpu().numpy()
     valid = matches > -1
@@ -202,8 +211,15 @@ def vis_match_pairs(pred, feats0, feats1, name0, name1):
 
     make_matching_plot_fast(
         image0, image1, kpts0, kpts1,
-        mkpts0, mkpts1, color, text=[]
+        mkpts0, mkpts1, color, text=[], vis_path=vis_path
     )
+
+
+def homogenize(pts):
+    return np.concatenate((pts, np.ones(shape=(pts.shape[0], 1))), axis=1)
+
+def dehomogenize(pts):
+    return (pts[:, :-1].T / pts[:, -1]).T
 
 
 def reproj(K, pose, pts_3d):
@@ -394,6 +410,40 @@ def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True, save_pa
 
         cv2.imwrite(save_path, image_full)
     return image_full
+
+
+def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img, bbox3d, img_save_path):
+    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+    # colors are in BGR 
+    colors = { 
+        'g': (0, 255, 0),
+        'r': (0, 0, 255),
+        'b': (255, 0, 0),
+        "light_blue": (244, 169, 3),
+        "gray": (127, 127, 127)
+    }
+    kpts_3d_proj = reproj(K, pose, kpts_3d)
+    for i, kpt in enumerate(kpts_3d_proj):
+        color = colors["b"] if i in matches else colors["light_blue"]
+        cv2.circle(img, tuple(map(int, kpt)), 2, color, -1, lineType=cv2.LINE_AA)
+
+    for kpt_2d in kpts_2d:
+        color = colors["g"]
+        cv2.circle(img, tuple(map(int, kpt_2d)), 2, color, -1, lineType=cv2.LINE_AA)
+
+    for i, kpt_2d in enumerate(kpts_2d):
+        kpt3d_proj = kpts_3d_proj[matches[i]]
+        color = cm.jet(confidences[i]/ np.max(confidences))
+        cv2.line(img, tuple(map(int, kpt_2d)), tuple(map(int, kpt3d_proj)), 
+                 color=color, thickness=1, lineType=cv2.LINE_AA)
+
+    proj_box = reproj(K, pose, bbox3d)
+    draw_3d_box(img, proj_box, color="b", linewidth=3)
+
+    cv2.imwrite(img_save_path, img)
+
+
 
 def dump_wis3d(idx, cfg, data_dir, image0, image1, image_full,
                kpts2d, kpts2d_reproj, confidence, inliers):

@@ -182,8 +182,10 @@ class LocalFeatureObjectDetector():
         if K is not None:
             K_crop, K_crop_homo = get_K_crop_resize(bbox_new, K_crop, resize_shape)
         image_crop, trans2 = get_image_crop_resize(image_crop, bbox_new, resize_shape)
-        
-        return image_crop, K_crop if K is not None else None
+
+
+        t_full_to_crop = trans2 @ trans1
+        return image_crop, K_crop if K is not None else None, t_full_to_crop
     
     def save_detection(self, crop_img, query_img_path):
         if self.output_results and self.detect_save_dir is not None:
@@ -219,7 +221,7 @@ class LocalFeatureObjectDetector():
         bbox = self.detect_by_matching(
             query=query_inp,
         )
-        image_crop, K_crop = self.crop_img_by_bbox(query_img_path, bbox, K, crop_size=crop_size)
+        image_crop, K_crop, t_full_to_crop = self.crop_img_by_bbox(query_img_path, bbox, K, crop_size=crop_size)
         self.save_detection(image_crop, query_img_path)
         self.save_K_crop(K_crop, query_img_path)
 
@@ -227,7 +229,7 @@ class LocalFeatureObjectDetector():
         image_crop = image_crop.astype(np.float32) / 255
         image_crop_tensor = torch.from_numpy(image_crop)[None][None].cuda()
 
-        return bbox, image_crop_tensor, K_crop
+        return bbox, image_crop_tensor, K_crop, t_full_to_crop
     
     def previous_pose_detect(self, query_img_path, K, pre_pose, bbox3D_corner, crop_size=512):
         """
@@ -248,7 +250,7 @@ class LocalFeatureObjectDetector():
         x1, y1 = np.max(proj_2D_coor, axis=0)
         bbox = np.array([x0, y0, x1, y1]).astype(np.int32)
 
-        image_crop, K_crop = self.crop_img_by_bbox(query_img_path, bbox, K, crop_size=crop_size)
+        image_crop, K_crop, t_full_to_crop = self.crop_img_by_bbox(query_img_path, bbox, K, crop_size=crop_size)
         self.save_detection(image_crop, query_img_path)
         self.save_K_crop(K_crop, query_img_path)
 
@@ -256,4 +258,4 @@ class LocalFeatureObjectDetector():
         image_crop = image_crop.astype(np.float32) / 255
         image_crop_tensor = torch.from_numpy(image_crop)[None][None].cuda()
 
-        return bbox, image_crop_tensor, K_crop
+        return bbox, image_crop_tensor, K_crop, t_full_to_crop

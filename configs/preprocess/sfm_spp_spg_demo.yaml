@@ -19,7 +19,7 @@ network:
     matching_model_path: ${work_dir}/data/models/matchers/SuperGlue/superglue_outdoor.pth
 
 sfm:
-    down_ratio: 5
+    down_ratio: 1
     covis_num: 10
     rotation_thresh: 50
 

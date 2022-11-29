@@ -4,12 +4,14 @@ import hydra
 from tqdm import tqdm
 import os
 import os.path as osp
+import cv2
 import numpy as np
 import natsort
 
 from loguru import logger
 from torch.utils.data import DataLoader
 from src.utils import data_utils, path_utils, eval_utils, vis_utils
+from src.utils.vis_utils import homogenize, dehomogenize
 from src.utils.model_io import load_network
 from src.local_feature_2D_detector import LocalFeatureObjectDetector
 
@@ -46,6 +48,13 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
         os.system(f"rm -rf {vis_detector_dir}")
     os.makedirs(vis_detector_dir, exist_ok=True)
     det_box_vis_video_path = osp.join(data_dir, "det_box.mp4")
+    
+    # Visualize keypoints:
+    keypoint_vis_dir = osp.join(data_dir, "keypoint_vis")
+    if osp.exists(keypoint_vis_dir):
+        os.system(f"rm -rf {keypoint_vis_dir}")
+    os.makedirs(keypoint_vis_dir, exist_ok=True)
+    keypoint_vis_video_path = osp.join(data_dir, "keypoint_vis.mp4")
 
     # Visualize pose:
     vis_box_dir = osp.join(data_dir, "pred_vis")
@@ -54,7 +63,7 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
     os.makedirs(vis_box_dir, exist_ok=True)
 
     # save poses
-    out_pose_dir = osp.join(data_dir, "out_poses")
+    out_pose_dir = osp.join(data_dir, "poses")
     os.makedirs(out_pose_dir, exist_ok=True)
 
     demo_video_path = osp.join(data_dir, "demo_video.mp4")
@@ -72,6 +81,8 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
         "vis_box_dir": vis_box_dir,
         "vis_detector_dir": vis_detector_dir,
         "det_box_vis_video_path": det_box_vis_video_path,
+        "keypoint_vis_dir": keypoint_vis_dir,
+        "keypoint_vis_video_path": keypoint_vis_video_path,
         "demo_video_path": demo_video_path,
         "out_pose_dir": out_pose_dir
     }
@@ -86,6 +97,7 @@ def load_model(cfg):
         from src.models.GATsSPG_lightning_model import LitModelGATsSPG
 
         trained_model = LitModelGATsSPG.load_from_checkpoint(checkpoint_path=model_path)
+        print(trained_model.hparams)
         trained_model.cuda()
         trained_model.eval()
 
@@ -169,7 +181,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
         extractor_model,
         matching_2D_model,
         sfm_ws_dir=paths["sfm_ws_dir"],
-        output_results=False,
+        output_results=True,
         detect_save_dir=paths["vis_detector_dir"],
     )
     dataset = NormalizedDataset(
@@ -195,23 +207,29 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
     )
 
     pred_poses = {}  # {id:[pred_pose, inliers]}
+    
+    # point tracking beween frames
+    active_2d_kpts = None
+    active_3d_kpts = None
+    prev_img = None
 
-    for id, data in enumerate(tqdm(loader)):
+    for id, data in enumerate(tqdm(loader, desc="Tracking Frames")):
         with torch.no_grad():
             img_path = data["path"][0]
             inp = data["image"].cuda()
+            previous_frame_pose = np.eye(4)
 
             # Detect object:
             if id == 0:
                 # Detect object by 2D local feature matching for the first frame:
-                bbox, inp_crop, K_crop = local_feature_obj_detector.detect(inp, img_path, K)
+                bbox, inp_crop, K_crop, t_full_to_crop = local_feature_obj_detector.detect(inp, img_path, K)
             else:
                 # Use 3D bbox and previous frame's pose to yield current frame 2D bbox:
                 previous_frame_pose, inliers = pred_poses[id - 1]
 
                 if len(inliers) < 8:
                     # Consider previous pose estimation failed, reuse local feature object detector:
-                    bbox, inp_crop, K_crop = local_feature_obj_detector.detect(
+                    bbox, inp_crop, K_crop, t_full_to_crop = local_feature_obj_detector.detect(
                         inp, img_path, K
                     )
                 else:
@@ -219,9 +237,29 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                         bbox,
                         inp_crop,
                         K_crop,
+                        t_full_to_crop
                     ) = local_feature_obj_detector.previous_pose_detect(
                         img_path, K, previous_frame_pose, bbox3d
                     )
+
+            # track all active keypoints
+            # if prev_img is not None and active_2d_kpts is not None:
+            #     img = (255 * inp.squeeze().cpu().numpy()).astype(np.uint8)
+            #     img_height, img_width = img.shape
+            #     kpts = np.ascontiguousarray(active_2d_kpts).astype(np.float32)
+            #     lk_params = dict(winSize=(21, 21),
+            #                     maxLevel=5,
+            #                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.01))
+            #     tracked_kp, status, err =  cv2.calcOpticalFlowPyrLK(prev_img, img, kpts, None, **lk_params)
+            #     # transform the tracked keypoints to the cropped image
+            #     tracked_kp = dehomogenize((t_full_to_crop @ homogenize(tracked_kp).T).T)
+            #     valid = status.flatten() == 1 # convert to bool mask
+            #     valid &= (tracked_kp[:, 0] >= 0) & (tracked_kp[:, 1] >= 0) & (tracked_kp[:, 0] < img_height) & (tracked_kp[:, 1] < img_width)
+            #     active_2d_kpts = tracked_kp[valid]
+            #     active_3d_kpts = active_3d_kpts[valid]
+            #     print(f"tracked {len(active_2d_kpts)} 2D keypoints from the previous frame")
+
+            # print(t_full_to_crop.shape)
 
             # Detect query image(cropped) keypoints and extract descriptors:
             pred_detection = extractor_model(inp_crop)
@@ -238,25 +276,55 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
             pred, _ = matching_model(inp_data)
             matches = pred["matches0"].detach().cpu().numpy()
             valid = matches > -1
+            matches = matches[valid]
             kpts2d = pred_detection["keypoints"]
             kpts3d = inp_data["keypoints3d"][0].detach().cpu().numpy()
             confidence = pred["matching_scores0"].detach().cpu().numpy()
             mkpts2d, mkpts3d, mconf = (
                 kpts2d[valid],
-                kpts3d[matches[valid]],
+                kpts3d[matches],
                 confidence[valid],
             )
 
+            # if active_2d_kpts is not None:
+            #     prev_matches = len(mkpts2d)
+            #     mkpts2d = np.concatenate((mkpts2d, active_2d_kpts), axis=0)
+            #     matches = np.concatenate((matches, prev_matches + np.arange(active_2d_kpts.shape[0])), axis=0)
+            #     mconf = np.concatenate((mconf, np.zeros(shape=(active_2d_kpts.shape[0]))), axis=0)
+            # if active_3d_kpts is not None:
+            #     mkpts3d = np.concatenate((mkpts3d, active_3d_kpts), axis=0)
+
+            # print(mkpts2d.shape, mkpts3d.shape)
+
+
             # Estimate object pose by 2D-3D correspondences:
             pose_pred, pose_pred_homo, inliers = eval_utils.ransac_PnP(
-                K_crop, mkpts2d, mkpts3d, scale=1000
+                K_crop, mkpts2d, mkpts3d, scale=1000, initial_pose=previous_frame_pose
             )
+
+            # store matches
+            # if len(inliers) > 0:
+            #     keep_kpts = np.asarray(inliers).ravel()
+            #     t_crop_to_full = np.linalg.inv(t_full_to_crop)
+            #     active_2d_kpts = dehomogenize((t_crop_to_full @ homogenize(mkpts2d).T).T)
+            #     active_2d_kpts = active_2d_kpts[keep_kpts]
+            #     active_3d_kpts = mkpts3d[keep_kpts]
+            # else:
+            #     active_2d_kpts = None
+            #     active_3d_kpts = None
 
             # Store previous estimated poses:
             pred_poses[id] = [pose_pred, inliers]
             image_crop = np.asarray((inp_crop * 255).squeeze().cpu().numpy(), dtype=np.uint8)
+        
+            # visualize the keypoints  
 
-        if cfg.use_tracking:
+            vis_utils.visualize_2d_3d_matches(
+                mkpts2d, kpts3d, matches, mconf, pose_pred_homo, K_crop, image_crop, bbox3d,
+                img_save_path=osp.join(paths["keypoint_vis_dir"], F"{id}.jpg")
+            )
+
+        if cfg.use_tracking and len(inliers) > 8:
             frame_dict = {
                 'im_path': image_crop,
                 'kpt_pred': pred_detection,
@@ -269,12 +337,13 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
 
             use_update = id % track_interval == 0
             if use_update:
+                inliers = np.asarray(inliers)
                 mkpts3d_db_inlier = mkpts3d[inliers.flatten()]
                 mkpts2d_q_inlier = mkpts2d[inliers.flatten()]
 
                 n_kpt = kpts2d.shape[0]
 
-                valid_query_id = np.where(valid != False)[0][inliers.flatten()]
+                valid_query_id = np.where(valid)[0][inliers.flatten()]
                 kpts3d_full = np.ones([n_kpt, 3]) * 10086
                 kpts3d_full[valid_query_id] = mkpts3d_db_inlier
                 kpt3d_ids = matches[valid][inliers.flatten()]
@@ -319,9 +388,13 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
         # pose T_co (object to camera)
         np.savetxt(osp.join(paths["out_pose_dir"], f"{id}.txt"), pose_opt)
 
+        # save the previous image for 2D keypoint tracking
+        prev_img = (255 * inp.detach().squeeze().cpu().numpy()).astype(np.uint8)
+
 
     # Output video to visualize estimated poses:
     vis_utils.make_video(paths["vis_box_dir"], paths["demo_video_path"])
+    vis_utils.make_video(paths["keypoint_vis_dir"], paths["keypoint_vis_video_path"])
 
 
 def inference(cfg):

@@ -4,6 +4,7 @@ import logging
 import tqdm
 
 import os.path as osp
+import os
 
 confs = {
     'superglue': {
@@ -82,7 +83,9 @@ def spg(cfg, feature_path, covis_pairs, matches_out, vis_match=False):
         matched |= {(name0, name1), (name1, name0)}
         
         if vis_match:
-            vis_match_pairs(pred, feats0, feats1, name0, name1)
+            vis_dir = osp.join(osp.dirname(matches_out), "matches_vis")
+            os.makedirs(vis_dir, exist_ok=True)
+            vis_match_pairs(pred, feats0, feats1, name0, name1, vis_dir)
     
     match_file.close()
     logging.info('Finishing exporting matches.')

@@ -37,7 +37,6 @@ The DeepLM module is required for bundle adjustment. Install it using the follow
 ```bash
 git submodule update --init --recursive
 . ./install_ext.sh
-
 ```
 
 Since DeepLM needs to be sourced directly into the workspace, the `$PYTHONPATH` environment variable needs to be changed
