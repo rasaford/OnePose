@@ -11,7 +11,7 @@ import natsort
 from loguru import logger
 from torch.utils.data import DataLoader
 from src.utils import data_utils, path_utils, eval_utils, vis_utils
-from src.utils.vis_utils import homogenize, dehomogenize
+from src.tracker.keypoint_tracker import KeypointTracker
 from src.utils.model_io import load_network
 from src.local_feature_2D_detector import LocalFeatureObjectDetector
 
@@ -209,11 +209,9 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
     pred_poses = {}  # {id:[pred_pose, inliers]}
     
     # point tracking beween frames
-    active_2d_kpts = None
-    active_3d_kpts = None
-    prev_img = None
-
-    for id, data in enumerate(tqdm(loader, desc="Tracking Frames")):
+    kpt_tracker = KeypointTracker(clt_data["keypoints3d"])
+    pbar = tqdm(loader, desc="Tracking Frames")
+    for id, data in enumerate(pbar):
         with torch.no_grad():
             img_path = data["path"][0]
             inp = data["image"].cuda()
@@ -243,23 +241,8 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                     )
 
             # track all active keypoints
-            # if prev_img is not None and active_2d_kpts is not None:
-            #     img = (255 * inp.squeeze().cpu().numpy()).astype(np.uint8)
-            #     img_height, img_width = img.shape
-            #     kpts = np.ascontiguousarray(active_2d_kpts).astype(np.float32)
-            #     lk_params = dict(winSize=(21, 21),
-            #                     maxLevel=5,
-            #                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.01))
-            #     tracked_kp, status, err =  cv2.calcOpticalFlowPyrLK(prev_img, img, kpts, None, **lk_params)
-            #     # transform the tracked keypoints to the cropped image
-            #     tracked_kp = dehomogenize((t_full_to_crop @ homogenize(tracked_kp).T).T)
-            #     valid = status.flatten() == 1 # convert to bool mask
-            #     valid &= (tracked_kp[:, 0] >= 0) & (tracked_kp[:, 1] >= 0) & (tracked_kp[:, 0] < img_height) & (tracked_kp[:, 1] < img_width)
-            #     active_2d_kpts = tracked_kp[valid]
-            #     active_3d_kpts = active_3d_kpts[valid]
-            #     print(f"tracked {len(active_2d_kpts)} 2D keypoints from the previous frame")
-
-            # print(t_full_to_crop.shape)
+            img = (255 * inp.squeeze().cpu().numpy()).astype(np.uint8)
+            kpt_tracker.track(img)
 
             # Detect query image(cropped) keypoints and extract descriptors:
             pred_detection = extractor_model(inp_crop)
@@ -286,15 +269,14 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                 confidence[valid],
             )
 
-            # if active_2d_kpts is not None:
-            #     prev_matches = len(mkpts2d)
-            #     mkpts2d = np.concatenate((mkpts2d, active_2d_kpts), axis=0)
-            #     matches = np.concatenate((matches, prev_matches + np.arange(active_2d_kpts.shape[0])), axis=0)
-            #     mconf = np.concatenate((mconf, np.zeros(shape=(active_2d_kpts.shape[0]))), axis=0)
-            # if active_3d_kpts is not None:
-            #     mkpts3d = np.concatenate((mkpts3d, active_3d_kpts), axis=0)
-
-            # print(mkpts2d.shape, mkpts3d.shape)
+            # merge the 2D-3D matched point sets with the tracked ones
+            t_crop_to_full = np.linalg.inv(t_full_to_crop)
+            mkpts2d_g = kpt_tracker.transform_2d(t_crop_to_full, mkpts2d)
+            kpt_tracker.merge_matches(mkpts2d_g, matches)
+            
+            mkpts2d_g, mkpts3d = kpt_tracker.get_active()
+            mkpts2d = kpt_tracker.transform_2d(t_full_to_crop, mkpts2d_g)
+            matches = kpt_tracker.get_active_matches()
 
 
             # Estimate object pose by 2D-3D correspondences:
@@ -302,27 +284,18 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                 K_crop, mkpts2d, mkpts3d, scale=1000, initial_pose=previous_frame_pose
             )
 
-            # store matches
-            # if len(inliers) > 0:
-            #     keep_kpts = np.asarray(inliers).ravel()
-            #     t_crop_to_full = np.linalg.inv(t_full_to_crop)
-            #     active_2d_kpts = dehomogenize((t_crop_to_full @ homogenize(mkpts2d).T).T)
-            #     active_2d_kpts = active_2d_kpts[keep_kpts]
-            #     active_3d_kpts = mkpts3d[keep_kpts]
-            # else:
-            #     active_2d_kpts = None
-            #     active_3d_kpts = None
+            kpt_tracker.mask_points(np.asarray(inliers).ravel())
 
             # Store previous estimated poses:
             pred_poses[id] = [pose_pred, inliers]
             image_crop = np.asarray((inp_crop * 255).squeeze().cpu().numpy(), dtype=np.uint8)
         
             # visualize the keypoints  
-
             vis_utils.visualize_2d_3d_matches(
-                mkpts2d, kpts3d, matches, mconf, pose_pred_homo, K_crop, image_crop, bbox3d,
+                mkpts2d, kpts3d, matches, pose_pred_homo, K_crop, image_crop, bbox3d,
                 img_save_path=osp.join(paths["keypoint_vis_dir"], F"{id}.jpg")
             )
+            pbar.set_description(f"Tracking Frames: {len(matches)} active, {len(inliers)} PnP inliers")
 
         if cfg.use_tracking and len(inliers) > 8:
             frame_dict = {
@@ -390,6 +363,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
 
         # save the previous image for 2D keypoint tracking
         prev_img = (255 * inp.detach().squeeze().cpu().numpy()).astype(np.uint8)
+        kpt_tracker.set_prev_image(prev_img)
 
 
     # Output video to visualize estimated poses:

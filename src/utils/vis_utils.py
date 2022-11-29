@@ -412,7 +412,7 @@ def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True, save_pa
     return image_full
 
 
-def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img, bbox3d, img_save_path):
+def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, pose, K, img, bbox3d, img_save_path):
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     # colors are in BGR 
@@ -434,7 +434,7 @@ def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img
 
     for i, kpt_2d in enumerate(kpts_2d):
         kpt3d_proj = kpts_3d_proj[matches[i]]
-        color = cm.jet(confidences[i]/ np.max(confidences))
+        color = cm.jet(0)
         cv2.line(img, tuple(map(int, kpt_2d)), tuple(map(int, kpt3d_proj)), 
                  color=color, thickness=1, lineType=cv2.LINE_AA)
 

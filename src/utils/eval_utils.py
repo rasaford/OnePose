@@ -47,7 +47,7 @@ def ransac_PnP(K, pts_2d, pts_3d, scale=1, initial_pose=None):
         return pose, pose_homo, inliers
     except cv2.error as e:
         print("PnP ERROR", e)
-        return np.eye(4)[:3], np.eye(4), []
+        return np.eye(4)[:3], np.eye(4), np.array([])
 
 
 def query_pose_error(pose_pred, pose_gt):
