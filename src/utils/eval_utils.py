@@ -32,7 +32,7 @@ def ransac_PnP(K, pts_2d, pts_3d, scale=1, initial_pose=None):
             # complains about them not being a cv::Mat*
             rvec, _ = cv2.Rodrigues(initial_pose[:3, :3])
             tvec = initial_pose[:3, 3].reshape(3, 1) 
-        _, rvec, tvec, inliers = cv2.solvePnPRansac(pts_3d, pts_2d, K, dist_coeffs, reprojectionError=5,
+        _, rvec, tvec, inliers = cv2.solvePnPRansac(pts_3d, pts_2d, K, dist_coeffs, reprojectionError=2,
                                                     rvec=rvec, tvec=tvec,
                                                     iterationsCount=10000, flags=cv2.SOLVEPNP_EPNP)
 
@@ -42,7 +42,7 @@ def ransac_PnP(K, pts_2d, pts_3d, scale=1, initial_pose=None):
         pose = np.concatenate([rotation, tvec], axis=-1)
         pose_homo = np.concatenate([pose, np.array([[0, 0, 0, 1]])], axis=0)
 
-        inliers = [] if inliers is None else inliers
+        inliers = np.array([]) if inliers is None else inliers
 
         return pose, pose_homo, inliers
     except cv2.error as e:

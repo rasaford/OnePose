@@ -292,10 +292,10 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
         
             # visualize the keypoints  
             vis_utils.visualize_2d_3d_matches(
-                mkpts2d, kpts3d, matches, pose_pred_homo, K_crop, image_crop, bbox3d,
+                mkpts2d, kpts3d, matches, inliers, pose_pred_homo, K_crop, image_crop, bbox3d,
                 img_save_path=osp.join(paths["keypoint_vis_dir"], F"{id}.jpg")
             )
-            pbar.set_description(f"Tracking Frames: {len(matches)} active, {len(inliers)} PnP inliers")
+            pbar.set_description(f"Tracking Frames: {len(matches)} kpts tracked, {len(inliers)} PnP inliers")
 
         if cfg.use_tracking and len(inliers) > 8:
             frame_dict = {

@@ -412,7 +412,7 @@ def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True, save_pa
     return image_full
 
 
-def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, pose, K, img, bbox3d, img_save_path):
+def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, inliers ,pose, K, img, bbox3d, img_save_path):
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     # colors are in BGR 
@@ -421,12 +421,14 @@ def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, pose, K, img, bbox3d, img
         'r': (0, 0, 255),
         'b': (255, 0, 0),
         "light_blue": (244, 169, 3),
-        "gray": (127, 127, 127)
+        "gray": (127, 127, 127),
+        "black": (0,0,0)
     }
     kpts_3d_proj = reproj(K, pose, kpts_3d)
     for i, kpt in enumerate(kpts_3d_proj):
         color = colors["b"] if i in matches else colors["light_blue"]
-        cv2.circle(img, tuple(map(int, kpt)), 2, color, -1, lineType=cv2.LINE_AA)
+        size = 2 if i in matches else 1
+        cv2.circle(img, tuple(map(int, kpt)), size, color, -1, lineType=cv2.LINE_AA)
 
     for kpt_2d in kpts_2d:
         color = colors["g"]
@@ -434,7 +436,7 @@ def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, pose, K, img, bbox3d, img
 
     for i, kpt_2d in enumerate(kpts_2d):
         kpt3d_proj = kpts_3d_proj[matches[i]]
-        color = cm.jet(0)
+        color = colors["black"] if i in inliers else colors["r"]
         cv2.line(img, tuple(map(int, kpt_2d)), tuple(map(int, kpt3d_proj)), 
                  color=color, thickness=1, lineType=cv2.LINE_AA)
 
