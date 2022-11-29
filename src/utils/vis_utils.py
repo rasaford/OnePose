@@ -216,9 +216,13 @@ def vis_match_pairs(pred, feats0, feats1, name0, name1, vis_dir=None):
 
 
 def homogenize(pts):
+    if len(pts) == 0:
+        return pts
     return np.concatenate((pts, np.ones(shape=(pts.shape[0], 1))), axis=1)
 
 def dehomogenize(pts):
+    if len(pts) == 0:
+        return pts
     return (pts[:, :-1].T / pts[:, -1]).T
 
 

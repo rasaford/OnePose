@@ -116,7 +116,7 @@ class BATracker:
                          criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 0.01))
 
         # kpt_last = np.array(, dtype=np.float32)
-        kpt_last = np.expand_dims(kpt2d_last, axis=1)
+        kpt_last = np.expand_dims(kpt2d_last, axis=1).astype(np.float32)
         kpt_new, status, err = cv2.calcOpticalFlowPyrLK(im_kf, im_query, kpt_last, None, **lk_params)
         if status is not None:
             valid_id = np.where(status.flatten() == 1)

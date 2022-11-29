@@ -37,6 +37,8 @@ class KeypointTracker:
 
 
     def transform_2d(self, t_full_to_crop: np.ndarray, pts: np.ndarray) -> np.ndarray:
+        if len(pts) == 0:
+            return pts
         # # transform the tracked keypoints to the cropped image
         return dehomogenize((t_full_to_crop @ homogenize(pts).T).T)
 

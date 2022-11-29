@@ -273,8 +273,9 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
             t_crop_to_full = np.linalg.inv(t_full_to_crop)
             mkpts2d_g = kpt_tracker.transform_2d(t_crop_to_full, mkpts2d)
             kpt_tracker.merge_matches(mkpts2d_g, matches)
-            
+
             mkpts2d_g, mkpts3d = kpt_tracker.get_active()
+            match_diff = len(mkpts2d_g) - len(mkpts2d)
             mkpts2d = kpt_tracker.transform_2d(t_full_to_crop, mkpts2d_g)
             matches = kpt_tracker.get_active_matches()
 
@@ -290,12 +291,6 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
             pred_poses[id] = [pose_pred, inliers]
             image_crop = np.asarray((inp_crop * 255).squeeze().cpu().numpy(), dtype=np.uint8)
         
-            # visualize the keypoints  
-            vis_utils.visualize_2d_3d_matches(
-                mkpts2d, kpts3d, matches, inliers, pose_pred_homo, K_crop, image_crop, bbox3d,
-                img_save_path=osp.join(paths["keypoint_vis_dir"], F"{id}.jpg")
-            )
-            pbar.set_description(f"Tracking Frames: {len(matches)} kpts tracked, {len(inliers)} PnP inliers")
 
         if cfg.use_tracking and len(inliers) > 8:
             frame_dict = {
@@ -314,12 +309,14 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                 mkpts3d_db_inlier = mkpts3d[inliers.flatten()]
                 mkpts2d_q_inlier = mkpts2d[inliers.flatten()]
 
-                n_kpt = kpts2d.shape[0]
+                # n_kpt = kpts2d.shape[0] + match_diff
+                # valid_query_id = np.where(valid)[0][inliers.flatten()]
+                # kpts3d_full = np.ones([n_kpt, 3]) * 10086
+                valid_query_id = inliers.flatten() 
+                # kpts3d_full[valid_query_id] = mkpts3d_db_inlier
+                kpt3d_ids = matches[inliers.flatten()]
 
-                valid_query_id = np.where(valid)[0][inliers.flatten()]
-                kpts3d_full = np.ones([n_kpt, 3]) * 10086
-                kpts3d_full[valid_query_id] = mkpts3d_db_inlier
-                kpt3d_ids = matches[valid][inliers.flatten()]
+                print(inliers.shape, mkpts2d_q_inlier.shape, mkpts2d_q_inlier.dtype)
 
                 kf_dict = {
                     'im_path': image_crop,
@@ -327,10 +324,9 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
                     'valid_mask': valid,
                     'mkpts2d': mkpts2d_q_inlier,
                     'mkpts3d': mkpts3d_db_inlier,
-                    'kpt3d_full': kpts3d_full,
+                    # 'kpt3d_full': kpts3d_full,
                     'inliers': inliers,
                     'kpt3d_ids': kpt3d_ids,
-
                     'valid_query_id': valid_query_id,
                     'pose_pred': pose_pred_homo,
                     'pose_gt': pose_pred_homo,
@@ -348,6 +344,12 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
         else:
             pose_opt = pose_pred_homo
 
+        # visualize the keypoints  
+        vis_utils.visualize_2d_3d_matches(
+            mkpts2d, kpts3d, matches, inliers, pose_opt, K_crop, image_crop, bbox3d,
+            img_save_path=osp.join(paths["keypoint_vis_dir"], F"{id}.jpg")
+        )
+        pbar.set_description(f"Tracking Frames: {len(matches)} kpts tracked, {len(inliers)} PnP inliers")
         # Visualize:
         vis_utils.save_demo_image(
             pose_opt,
@@ -367,6 +369,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
 
 
     # Output video to visualize estimated poses:
+    print("Creating Videos")
     vis_utils.make_video(paths["vis_box_dir"], paths["demo_video_path"])
     vis_utils.make_video(paths["keypoint_vis_dir"], paths["keypoint_vis_video_path"])
 

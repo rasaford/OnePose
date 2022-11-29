@@ -168,24 +168,51 @@ class LocalFeatureObjectDetector():
             image_crop: np.ndarray[crop_size * crop_size],
             K_crop[optional]: 3*3
         """
-        x0, y0 = bbox[0], bbox[1]
-        x1, y1 = bbox[2], bbox[3]
-        origin_img = cv2.imread(query_img_path, cv2.IMREAD_GRAYSCALE)
 
-        resize_shape = np.array([y1 - y0, x1 - x0])
-        if K is not None:
-            K_crop, K_crop_homo = get_K_crop_resize(bbox, K, resize_shape)
-        image_crop, trans1 = get_image_crop_resize(origin_img, bbox, resize_shape)
+        u_min, v_min = bbox[0], bbox[1]
+        u_max, v_max = bbox[2], bbox[3]
+        img = cv2.imread(query_img_path, cv2.IMREAD_GRAYSCALE)
 
-        bbox_new = np.array([0, 0, x1 - x0, y1 - y0])
+        # Extend the object bounding box in 2D to a square encompoassing the
+        # **entire** 2D bounding box i.e. do not crop into the bbox
+        d_u = u_max - u_min
+        d_v = v_max - v_min
+        c_u = (u_max + u_min) // 2
+        c_v = (v_max + v_min) // 2
+        if d_u < d_v:
+            u_min = c_u - d_v // 2
+            u_max = c_u + d_v // 2
+        else:
+            v_min = c_v - d_u // 2
+            v_max = c_v + d_u // 2
+
+        box = np.array([u_min, v_min, u_max, v_max])
         resize_shape = np.array([crop_size, crop_size])
-        if K is not None:
-            K_crop, K_crop_homo = get_K_crop_resize(bbox_new, K_crop, resize_shape)
-        image_crop, trans2 = get_image_crop_resize(image_crop, bbox_new, resize_shape)
+
+        K_crop, K_crop_homo = get_K_crop_resize(box, K, resize_shape)
+        img_crop, trans1 = get_image_crop_resize(img, box, resize_shape)
 
 
-        t_full_to_crop = trans2 @ trans1
-        return image_crop, K_crop if K is not None else None, t_full_to_crop
+
+        # x0, y0 = bbox[0], bbox[1]
+        # x1, y1 = bbox[2], bbox[3]
+        # origin_img = cv2.imread(query_img_path, cv2.IMREAD_GRAYSCALE)
+
+        # resize_shape = np.array([y1 - y0, x1 - x0])
+        # if K is not None:
+        #     K_crop, K_crop_homo = get_K_crop_resize(bbox, K, resize_shape)
+        # image_crop, trans1 = get_image_crop_resize(origin_img, bbox, resize_shape)
+
+        # bbox_new = np.array([0, 0, x1 - x0, y1 - y0])
+        # resize_shape = np.array([crop_size, crop_size])
+        # if K is not None:
+        #     K_crop, K_crop_homo = get_K_crop_resize(bbox_new, K_crop, resize_shape)
+        # image_crop, trans2 = get_image_crop_resize(image_crop, bbox_new, resize_shape)
+
+
+        # t_full_to_crop = trans2 @ trans1
+        t_full_to_crop = trans1
+        return img_crop, K_crop if K is not None else None, t_full_to_crop
     
     def save_detection(self, crop_img, query_img_path):
         if self.output_results and self.detect_save_dir is not None:
