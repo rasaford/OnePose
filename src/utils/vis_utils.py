@@ -405,7 +405,7 @@ def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True):
         reproj_box_2d = reproj(K, pose_pred, box3d)
         draw_3d_box(image_full, reproj_box_2d, color='b', linewidth=10)
 
-    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return cv2.cvtColor(image_full, cv2.COLOR_BGR2RGB)
 
 
 def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img, bbox3d):
