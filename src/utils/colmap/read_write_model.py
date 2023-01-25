@@ -298,7 +298,7 @@ def write_images_binary(images, path_to_model_file):
             write_next_bytes(fid, img.qvec.tolist(), "dddd")
             write_next_bytes(fid, img.tvec.tolist(), "ddd")
             write_next_bytes(fid, img.camera_id, "i")
-            for char in img.name:
+            for char in str(img.name):
                 write_next_bytes(fid, char.encode("utf-8"), "c")
             write_next_bytes(fid, b"\x00", "c")
             write_next_bytes(fid, len(img.point3D_ids), "Q")
@@ -490,7 +490,7 @@ def main():
     args = parser.parse_args()
 
     cameras, images, points3D = read_model(path=args.input_model, ext=args.input_format)
-    
+
     print("num_cameras:", len(cameras))
     print("num_images:", len(images))
     print("num_points3D:", len(points3D))

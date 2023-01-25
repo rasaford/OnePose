@@ -1,5 +1,6 @@
 import h5py
 import tqdm
+import os
 import torch
 import logging
 
@@ -32,7 +33,7 @@ def spp(img_lists, feature_out, cfg):
     from src.utils.model_io import load_network
     from src.models.extractors.SuperPoint.superpoint import SuperPoint as spp_det
     from src.datasets.normalized_dataset import NormalizedDataset
-    
+
     conf = confs[cfg.network.detection]
     model = spp_det(conf['conf']).cuda()
     model.eval()
@@ -43,19 +44,19 @@ def spp(img_lists, feature_out, cfg):
 
     feature_file = h5py.File(feature_out, 'w')
     logging.info(f'Exporting features to {feature_out}')
-    for data in tqdm.tqdm(loader):
+    for data in tqdm.tqdm(loader, desc="Extracting Features"):
         inp = data['image'].cuda()
         pred = model(inp)
 
         pred = {k: v[0].cpu().numpy() for k, v in pred.items()}
         pred['image_size'] = data['size'][0].numpy()
-        
+
         grp = feature_file.create_group(data['path'][0])
         for k, v in pred.items():
             grp.create_dataset(k, data=v)
-        
+
         del pred
-    
+
     feature_file.close()
     logging.info('Finishing exporting features.')
 

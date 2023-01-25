@@ -7,3 +7,4 @@ data/
 euler_init.sh
 euler/
 .vscode/
+onepose.egg-info

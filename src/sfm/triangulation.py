@@ -1,14 +1,17 @@
-import os
-import h5py
 import logging
-import tqdm
-import subprocess
+import os
 import os.path as osp
-import numpy as np
-
+import shutil
+import subprocess
 from pathlib import Path
-from src.utils.colmap.read_write_model import CAMERA_MODEL_NAMES, Image, read_cameras_binary, read_images_binary
+
+import h5py
+import numpy as np
+import tqdm
 from src.utils.colmap.database import COLMAPDatabase
+from src.utils.colmap.read_write_model import (CAMERA_MODEL_NAMES, Image,
+                                               read_cameras_binary,
+                                               read_images_binary)
 
 
 def names_to_pair(name0, name1):
@@ -33,22 +36,24 @@ def geometric_verification(colmap_path, database_path, pairs_path):
 def create_db_from_model(empty_model, database_path):
     """ Create COLMAP database file from empty COLMAP binary file. """
     if database_path.exists():
-        logging.warning('Database already exists.')
-    
+        logging.warning("COLMAP Database path already exists. Deleting")
+        shutil.rmtree(database_path)
+
+
     cameras = read_cameras_binary(str(empty_model / 'cameras.bin'))
     images = read_images_binary(str(empty_model / 'images.bin'))
 
     db = COLMAPDatabase.connect(database_path)
     db.create_tables()
-    
+
     for i, camera in cameras.items():
         model_id = CAMERA_MODEL_NAMES[camera.model].model_id
         db.add_camera(model_id, camera.width, camera.height, camera.params,
                       camera_id=i, prior_focal_length=True)
-    
+
     for i, image in images.items():
         db.add_image(image.name, image.camera_id, image_id=i)
-    
+
     db.commit()
     db.close()
     return {image.name: i for i, image in images.items()}
@@ -64,7 +69,7 @@ def import_features(image_ids, database_path, feature_path):
         keypoints = feature_file[image_name]['keypoints'].__array__()
         keypoints += 0.5
         db.add_keypoints(image_id, keypoints)
-    
+
     feature_file.close()
     db.commit()
     db.close()
@@ -77,16 +82,16 @@ def import_matches(image_ids, database_path, pairs_path, matches_path, feature_p
 
     with open(str(pairs_path), 'r') as f:
         pairs = [p.split(' ') for p in f.read().split('\n')]
-    
+
     match_file = h5py.File(str(matches_path), 'r')
     db = COLMAPDatabase.connect(database_path)
-    
+
     matched = set()
     for name0, name1 in tqdm.tqdm(pairs):
         id0, id1 = image_ids[name0], image_ids[name1]
         if len({(id0, id1), (id1, id0)} & matched) > 0:
             continue
-    
+
         pair = names_to_pair(name0, name1)
         if pair not in match_file:
             raise ValueError(
@@ -94,7 +99,7 @@ def import_matches(image_ids, database_path, pairs_path, matches_path, feature_p
                 'Maybe you matched with a different list of pairs? '
                 f'Reverse in file: {names_to_pair(name0, name1) in match_file}.'
             )
-        
+
         matches = match_file[pair]['matches0'].__array__()
         valid = matches > -1
         if min_match_score:
@@ -108,7 +113,7 @@ def import_matches(image_ids, database_path, pairs_path, matches_path, feature_p
 
         if skip_geometric_verification:
             db.add_two_view_geometry(id0, id1, matches)
-    
+
     match_file.close()
     db.commit()
     db.close()
@@ -117,7 +122,7 @@ def import_matches(image_ids, database_path, pairs_path, matches_path, feature_p
 def run_triangulation(colmap_path, model_path, database_path, image_dir, empty_model):
     """ run triangulation on given database """
     logging.info('Running the triangulation...')
-    
+
     cmd = [
         str(colmap_path), 'point_triangulator',
         '--database_path', str(database_path),
@@ -133,7 +138,7 @@ def run_triangulation(colmap_path, model_path, database_path, image_dir, empty_m
     if ret != 0:
         logging.warning('Problem with point_triangulator, existing.')
         exit(ret)
-    
+
     stats_raw = subprocess.check_output(
         [str(colmap_path), 'model_analyzer', '--path', model_path]
     )
@@ -157,14 +162,14 @@ def run_triangulation(colmap_path, model_path, database_path, image_dir, empty_m
 
 def main(sfm_dir, empty_sfm_model, outputs_dir, pairs, features, matches, \
          colmap_path='colmap', skip_geometric_verification=False, min_match_score=None, image_dir=None):
-    """ 
+    """
         Import keypoints, matches.
         Given keypoints and matches, reconstruct sparse model from given camera poses.
     """
     assert Path(empty_sfm_model).exists(), empty_sfm_model
     assert Path(features).exists(), features
     assert Path(pairs).exists(), pairs
-    assert Path(matches).exists(), matches 
+    assert Path(matches).exists(), matches
 
     Path(sfm_dir).mkdir(parents=True, exist_ok=True)
     database = osp.join(sfm_dir, 'database.db')
@@ -175,10 +180,10 @@ def main(sfm_dir, empty_sfm_model, outputs_dir, pairs, features, matches, \
     import_features(image_ids, database, features)
     import_matches(image_ids, database, pairs, matches, features,
                    min_match_score, skip_geometric_verification)
-    
+
     if not skip_geometric_verification:
         geometric_verification(colmap_path, database, pairs)
-    
+
     if not image_dir:
         image_dir = '/'
     stats = run_triangulation(colmap_path, model, database, image_dir, empty_sfm_model)

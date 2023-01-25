@@ -64,7 +64,7 @@ def load_network(net, model_dir, resume=True, epoch=-1, strict=True, force=False
 
     if not os.path.exists(model_dir):
         if force:
-            raise NotImplementedError
+            raise FileNotFoundError(f"Could not find model path: {model_dir}")
         else:
             print('pretrained model does not exist')
             return 0
