@@ -141,7 +141,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
         pred_detection = {k: v[0].cpu().numpy() for k, v in pred_detection.items()}
 
         # 2D-3D matching by GATsSPG:
-        inp_data = pack_data(avg_descriptors3d, clt_descriptors, 
+        inp_data = pack_data(avg_descriptors3d, clt_descriptors,
                              keypoints3d, pred_detection, data['size'])
         pred, _ = matching_model(inp_data)
         matches = pred['matches0'].detach().cpu().numpy()

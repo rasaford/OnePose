@@ -15,14 +15,13 @@ from src.utils.vis_utils import homogenize, dehomogenize
 from src.utils.model_io import load_network
 from src.local_feature_2D_detector import LocalFeatureObjectDetector
 
-from src.tracker.ba_tracker import BATracker
 
 from pytorch_lightning import seed_everything
 
 seed_everything(12345)
 
 
-def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
+def get_default_paths(cfg, data_root, dynamic_dir, sfm_model_dir):
     anno_dir = osp.join(
         sfm_model_dir, f"outputs_{cfg.network.detection}_{cfg.network.matching}", "anno"
     )
@@ -37,41 +36,41 @@ def get_default_paths(cfg, data_root, data_dir, sfm_model_dir):
     )
 
     img_lists = []
-    color_dir = osp.join(data_dir, "color_full")
+    color_dir = osp.join(dynamic_dir, "color_full")
     img_lists += glob.glob(color_dir + "/*.png", recursive=True)
-    
+
     img_lists = natsort.natsorted(img_lists)
 
     # Visualize detector:
-    vis_detector_dir = osp.join(data_dir, "detector_vis")
+    vis_detector_dir = osp.join(dynamic_dir, "detector_vis")
     if osp.exists(vis_detector_dir):
         os.system(f"rm -rf {vis_detector_dir}")
     os.makedirs(vis_detector_dir, exist_ok=True)
-    det_box_vis_video_path = osp.join(data_dir, "det_box.mp4")
-    
+    det_box_vis_video_path = osp.join(dynamic_dir, "det_box.mp4")
+
     # Visualize keypoints:
-    keypoint_vis_dir = osp.join(data_dir, "keypoint_vis")
+    keypoint_vis_dir = osp.join(dynamic_dir, "keypoint_vis")
     if osp.exists(keypoint_vis_dir):
         os.system(f"rm -rf {keypoint_vis_dir}")
     os.makedirs(keypoint_vis_dir, exist_ok=True)
-    keypoint_vis_video_path = osp.join(data_dir, "keypoint_vis.mp4")
+    keypoint_vis_video_path = osp.join(dynamic_dir, "keypoint_vis.mp4")
 
     # Visualize pose:
-    vis_box_dir = osp.join(data_dir, "pred_vis")
+    vis_box_dir = osp.join(dynamic_dir, "pred_vis")
     if osp.exists(vis_box_dir):
         os.system(f"rm -rf {vis_box_dir}")
     os.makedirs(vis_box_dir, exist_ok=True)
 
     # save poses
-    out_pose_dir = osp.join(data_dir, "poses")
+    out_pose_dir = osp.join(dynamic_dir, "poses")
     os.makedirs(out_pose_dir, exist_ok=True)
 
-    demo_video_path = osp.join(data_dir, "demo_video.mp4")
+    demo_video_path = osp.join(dynamic_dir, "demo_video.mp4")
 
-    intrin_full_path = osp.join(data_dir, "intrinsics.txt")
+    intrin_full_path = osp.join(dynamic_dir, "intrinsics.txt")
     paths = {
         "data_root": data_root,
-        "data_dir": data_dir,
+        "data_dir": dynamic_dir,
         "sfm_model_dir": sfm_model_dir,
         "sfm_ws_dir": sfm_ws_dir,
         "avg_anno_3d_path": avg_anno_3d_path,
@@ -156,6 +155,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
     from src.datasets.normalized_dataset import NormalizedDataset
     from src.sfm.extract_features import confs
     if cfg.use_tracking:
+        from src.tracker.ba_tracker import BATracker
         logger.warning("The tracking module is under development. "
                        "Running OnePose inference without tracking instead.")
         tracker = BATracker(cfg)
@@ -207,7 +207,7 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
     )
 
     pred_poses = {}  # {id:[pred_pose, inliers]}
-    
+
     # point tracking beween frames
     active_2d_kpts = None
     active_3d_kpts = None
@@ -316,8 +316,8 @@ def inference_core(cfg, data_root, seq_dir, sfm_model_dir):
             # Store previous estimated poses:
             pred_poses[id] = [pose_pred, inliers]
             image_crop = np.asarray((inp_crop * 255).squeeze().cpu().numpy(), dtype=np.uint8)
-        
-            # visualize the keypoints  
+
+            # visualize the keypoints
 
             vis_utils.visualize_2d_3d_matches(
                 mkpts2d, kpts3d, matches, mconf, pose_pred_homo, K_crop, image_crop, bbox3d,

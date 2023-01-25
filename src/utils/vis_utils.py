@@ -88,7 +88,7 @@ def make_matching_plot(
             path,
             show_keypoints
         )
-        return 
+        return
 
     plot_image_pair([image0, image1]) # will create a new figure
     if show_keypoints:
@@ -134,17 +134,17 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1,
     H0, W0 = image0.shape
     H1, W1 = image1.shape
     H, W = max(H0, H1), W0 + W1 + margin
-    
+
     out = 255 * np.ones((H, W), np.uint8)
     out[:H0, :W0] = image0
     out[:H1, W0+margin:] = image1
     out = np.stack([out] * 3, -1)
-    
+
     if show_keypoints:
         kpts0, kpts1 = np.round(kpts0).astype(int), np.round(kpts1).astype(int)
         white = (255, 255, 255)
         black = (0, 0, 0)
-        
+
         for x, y in kpts0:
             cv2.circle(out, (x, y), 2, black, -1, lineType=cv2.LINE_AA)
             cv2.circle(out, (x, y), 1, white, -1, lineType=cv2.LINE_AA)
@@ -156,12 +156,12 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1,
     color = (np.array(color[:, :3]) * 255).astype(int)[:, ::-1]
     for (x0, y0), (x1, y1), c in zip(mkpts0, mkpts1, color):
         c = c.tolist()
-        cv2.line(out, (x0, y0), (x1 + margin + W0, y1), 
+        cv2.line(out, (x0, y0), (x1 + margin + W0, y1),
                  color=c, thickness=1, lineType=cv2.LINE_AA)
         cv2.circle(out, (x0, y0), 2, c, -1, lineType=cv2.LINE_AA)
         cv2.circle(out, (x1 + margin + W0, y1), 2, c, -1,
                    lineType=cv2.LINE_AA)
-    
+
     scale = min(H / 640., 2.0) * 1.2 # scale
     Ht = int(30 * scale) # text height
     text_color_fg = (0, 225, 255)
@@ -172,8 +172,8 @@ def make_matching_plot_fast(image0, image1, kpts0, kpts1,
         cv2.putText(out, t, (int(8*scale), Ht*(i+1)), cv2.FONT_HERSHEY_DUPLEX,
                     1.0*scale, text_color_fg, 1, cv2.LINE_AA)
 
-    if vis_path is not None:    
-        cv2.imwrite(vis_path, out)
+    if vis_path is not None:
+        cv2.imwrite(str(vis_path), out)
     else:
         cv2.namedWindow('vis', 0)
         cv2.resizeWindow('vis', 800, 800)
@@ -187,7 +187,7 @@ def vis_match_pairs(pred, feats0, feats1, name0, name1, vis_dir=None):
 
     image0_path = name0
     image1_path = name1
-    
+
     image0 = cv2.imread(image0_path)
     image0 = cv2.cvtColor(image0, cv2.COLOR_RGB2GRAY)
     image1 = cv2.imread(image1_path)
@@ -198,13 +198,13 @@ def vis_match_pairs(pred, feats0, feats1, name0, name1, vis_dir=None):
         vis_path = osp.join(
             vis_dir,
             f"{osp.basename(image0_path).split('.')[0]}-{osp.basename(image1_path).split('.')[0]}.png")
-    
+
     matches = pred['matches0'][0].detach().cpu().numpy()
     valid = matches > -1
-    
+
     kpts0, kpts1 = feats0['keypoints'].__array__(), feats1['keypoints'].__array__()
     mkpts0, mkpts1 = kpts0[valid], kpts1[matches[valid]]
-    
+
     conf = pred['matching_scores0'][0].detach().cpu().numpy()
     mconf = conf[valid]
     color = cm.jet(mconf)
@@ -223,8 +223,8 @@ def dehomogenize(pts):
 
 
 def reproj(K, pose, pts_3d):
-    """ 
-    Reproj 3d points to 2d points 
+    """
+    Reproj 3d points to 2d points
     @param K: [3, 3] or [3, 4]
     @param pose: [3, 4] or [4, 4]
     @param pts_3d: [n, 3]
@@ -236,12 +236,12 @@ def reproj(K, pose, pts_3d):
         K_homo = np.concatenate([K, np.zeros((3, 1))], axis=1)
     else:
         K_homo = K
-    
+
     if pose.shape == (3, 4):
         pose_homo = np.concatenate([pose, np.array([[0, 0, 0, 1]])], axis=0)
     else:
         pose_homo = pose
-    
+
     pts_3d = pts_3d.reshape(-1, 3)
     pts_3d_homo = np.concatenate([pts_3d, np.ones((pts_3d.shape[0], 1))], axis=1)
     pts_3d_homo = pts_3d_homo.T
@@ -253,7 +253,7 @@ def reproj(K, pose, pts_3d):
 
 
 def draw_3d_box(image, corners_2d, linewidth=3, color='g'):
-    """ Draw 3d box corners 
+    """ Draw 3d box corners
     @param corners_2d: [8, 2]
     """
     lines = np.array([
@@ -270,7 +270,7 @@ def draw_3d_box(image, corners_2d, linewidth=3, color='g'):
         color = (42, 97, 247)
     else:
         color = colors[color]
-    
+
     for id, line in enumerate(lines):
         pt1 = corners_2d[line[0]].astype(int)
         pt2 = corners_2d[line[1]].astype(int)
@@ -302,14 +302,14 @@ def draw_reprojection_pair(data, val_results, visual_color_type='conf'):
     mkpts3d = val_results['mkpts3d']
     mkpts2d = val_results['mkpts2d']
     mkpts3d_reprojed = reproj(query_K, query_pose_gt, mkpts3d)
-    
+
     figures = {'evaluation': []}
     text = [
         f'Num of matches: {mkpts3d_reprojed.shape[0]}',
     ]
     if visual_color_type == 'conf':
         if mkpts3d_reprojed.shape[0] != 0:
-            mconf_max = np.max(mconf)    
+            mconf_max = np.max(mconf)
             mconf_min = np.min(mconf)
             mconf_normalized = (mconf - mconf_min) / (
                 mconf_max - mconf_min + 1e-4
@@ -328,7 +328,7 @@ def draw_reprojection_pair(data, val_results, visual_color_type='conf'):
 
     else:
         raise NotImplementedError
-    
+
     figure = make_matching_plot(
         query_image,
         query_image,
@@ -342,11 +342,11 @@ def draw_reprojection_pair(data, val_results, visual_color_type='conf'):
     figures['evaluation'].append(figure)
 
     return figures
-        
+
 
 def vis_reproj(image_full_path, poses, box3d_path, intrin_full_path,
                save_demo=False, demo_root=None, colors=['y', 'g']):
-    """ 
+    """
     Draw 2d box reprojected by 3d box.
     Yellow for gt pose, and green for pred pose.
     """
@@ -354,7 +354,7 @@ def vis_reproj(image_full_path, poses, box3d_path, intrin_full_path,
         """ Read intrinsics"""
         with open(intrin_full_path, 'r') as f:
             lines = [line.rstrip('\n').split(':')[1] for line in f.readlines()]
-        
+
         fx, fy, cx, cy = list(map(float, lines))
 
         K = np.array([
@@ -389,12 +389,12 @@ def vis_reproj(image_full_path, poses, box3d_path, intrin_full_path,
 
         save_path = osp.join(demo_dir, '{:05d}.jpg'.format(img_idx))
         print(f'=> Saving image: {save_path}')
-        cv2.imwrite(save_path, image_full)
+        cv2.imwrite(str(save_path), image_full)
 
     return image_full
 
-def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True, save_path=None):
-    """ 
+def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True):
+    """
     Project 3D bbox by predicted pose and visualize
     """
     box3d = np.loadtxt(box3d_path)
@@ -404,19 +404,15 @@ def save_demo_image(pose_pred, K, image_path, box3d_path, draw_box=True, save_pa
     if draw_box:
         reproj_box_2d = reproj(K, pose_pred, box3d)
         draw_3d_box(image_full, reproj_box_2d, color='b', linewidth=10)
-    
-    if save_path is not None:
-        Path(save_path).parent.mkdir(exist_ok=True, parents=True)
 
-        cv2.imwrite(save_path, image_full)
-    return image_full
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img, bbox3d, img_save_path):
+def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img, bbox3d):
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    # colors are in BGR 
-    colors = { 
+    # colors are in BGR
+    colors = {
         'g': (0, 255, 0),
         'r': (0, 0, 255),
         'b': (255, 0, 0),
@@ -432,18 +428,17 @@ def visualize_2d_3d_matches(kpts_2d, kpts_3d, matches, confidences, pose, K, img
         color = colors["g"]
         cv2.circle(img, tuple(map(int, kpt_2d)), 2, color, -1, lineType=cv2.LINE_AA)
 
+    max_confidence = np.max(confidences) + 1e-6  # epsilon offsets
     for i, kpt_2d in enumerate(kpts_2d):
         kpt3d_proj = kpts_3d_proj[matches[i]]
-        color = cm.jet(confidences[i]/ np.max(confidences))
-        cv2.line(img, tuple(map(int, kpt_2d)), tuple(map(int, kpt3d_proj)), 
+        color = cm.viridis(float(confidences[i] / max_confidence))
+        cv2.line(img, tuple(map(int, kpt_2d)), tuple(map(int, kpt3d_proj)),
                  color=color, thickness=1, lineType=cv2.LINE_AA)
 
     proj_box = reproj(K, pose, bbox3d)
     draw_3d_box(img, proj_box, color="b", linewidth=3)
 
-    cv2.imwrite(img_save_path, img)
-
-
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 def dump_wis3d(idx, cfg, data_dir, image0, image1, image_full,
                kpts2d, kpts2d_reproj, confidence, inliers):
@@ -489,7 +484,7 @@ def make_video(image_path, output_video_path):
     H, W, C = cv2.imread(osp.join(image_path, images[0])).shape
     if osp.exists(output_video_path):
         os.remove(output_video_path)
-    
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video = cv2.VideoWriter(output_video_path, fourcc, 24, (W, H))
     for id, image_name in enumerate(images):

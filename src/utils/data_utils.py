@@ -29,12 +29,12 @@ def get_affine_transform(center,
                          inv=0):
     if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
         scale = np.array([scale, scale], dtype=np.float32)
-    
+
     scale_tmp = scale
     src_w = scale_tmp[0]
     dst_w = output_size[0]
     dst_h = output_size[1]
-    
+
     rot_rad = np.pi * rot / 180
     src_dir = get_dir([0, src_w * -0.5], rot_rad)
     dst_dir = np.array([0, dst_w * -0.5], np.float32)
@@ -59,7 +59,7 @@ def get_affine_transform(center,
 
 def pad_keypoints2d_random(keypoints, features, scores, img_h, img_w, n_target_kpts):
     dtype = keypoints.dtype
-    
+
     n_pad = n_target_kpts - keypoints.shape[0]
     if n_pad < 0:
         keypoints = keypoints[:n_target_kpts] # [n_target_kpts, 2]
@@ -70,7 +70,7 @@ def pad_keypoints2d_random(keypoints, features, scores, img_h, img_w, n_target_k
             random_kpts_x = torch.randint(0, img_w, (n_pad, ), dtype=dtype)
             random_kpts_y = torch.randint(0, img_h, (n_pad, ), dtype=dtype)
             rand_kpts = torch.stack([random_kpts_y, random_kpts_x], dim=1)
-            
+
             exist = (rand_kpts[:, None, :] == keypoints[None, :, :]).all(-1).any(1) # (n_pad, )
             kept_kpts = rand_kpts[~exist] # (n_kept, 2)
             n_pad -= len(kept_kpts)
@@ -78,7 +78,7 @@ def pad_keypoints2d_random(keypoints, features, scores, img_h, img_w, n_target_k
                 keypoints = torch.cat([keypoints, kept_kpts], 0)
                 scores = torch.cat([scores, torch.zeros(len(kept_kpts), 1, dtype=scores.dtype)], dim=0)
                 features = torch.cat([features, torch.ones(features.shape[0], len(kept_kpts))], dim=1)
-   
+
     return keypoints, features, scores
 
 
@@ -91,7 +91,7 @@ def pad_features(features, num_leaf):
         features = features[:num_leaf]
     else:
         features = torch.cat([features, torch.ones((num_leaf - num_features, feature_dim))], dim=0)
-    
+
     return features.T
 
 
@@ -120,9 +120,9 @@ def avg_scores(scores):
 def pad_keypoints3d_random(keypoints, n_target_kpts):
     """ Pad or truncate orig 3d keypoints to fixed size."""
     n_pad = n_target_kpts - keypoints.shape[0]
-    
+
     if n_pad < 0:
-        keypoints = keypoints[:n_target_kpts] # [n_target_kpts: 3] 
+        keypoints = keypoints[:n_target_kpts] # [n_target_kpts: 3]
     else :
         while n_pad > 0:
             rand_kpts_x = torch.rand(n_pad, 1) - 0.5 # zero mean
@@ -156,12 +156,12 @@ def pad_features3d_random(descriptors, scores, n_target_shape):
     else:
         descriptors = torch.cat([descriptors, torch.ones(dim, n_pad)], dim=-1)
         scores = torch.cat([scores, torch.zeros(n_pad, 1)], dim=0)
-    
+
     return descriptors, scores
 
 
 def build_features3d_leaves(descriptors, scores, idxs, n_target_shape, num_leaf):
-    """ Given num_leaf, fix the numf of 3d features to n_target_shape * num_leaf""" 
+    """ Given num_leaf, fix the numf of 3d features to n_target_shape * num_leaf"""
     if not isinstance(descriptors, torch.Tensor):
         descriptors = torch.Tensor(descriptors)
     if not isinstance(scores, torch.Tensor):
@@ -173,9 +173,10 @@ def build_features3d_leaves(descriptors, scores, idxs, n_target_shape, num_leaf)
 
     # pad dustbin descriptors and scores
     descriptors_dustbin = torch.cat([descriptors, torch.ones(dim, 1)], dim=1)
+    scores = scores.reshape(-1, 1)
     scores_dustbin = torch.cat([scores, torch.zeros(1, 1)], dim=0)
     dustbin_id = descriptors_dustbin.shape[1] - 1
-    
+
     upper_idxs = np.cumsum(idxs, axis=0)
     lower_idxs = np.insert(upper_idxs[:-1], 0, 0)
     affilicate_idxs_ = []
@@ -183,36 +184,36 @@ def build_features3d_leaves(descriptors, scores, idxs, n_target_shape, num_leaf)
         if num_leaf > end - start:
             idxs = np.arange(start, end).tolist()
             idxs += [dustbin_id] * (num_leaf - (end - start))
-            shuffle_idxs = np.random.permutation(np.array(idxs)) 
+            shuffle_idxs = np.random.permutation(np.array(idxs))
             affilicate_idxs_.append(shuffle_idxs)
         else:
             shuffle_idxs = np.random.permutation(np.arange(start, end))[:num_leaf]
             affilicate_idxs_.append(shuffle_idxs)
-         
+
     affilicate_idxs = np.concatenate(affilicate_idxs_, axis=0)
 
     assert affilicate_idxs.shape[0] == orig_num * num_leaf
     descriptors = descriptors_dustbin[:, affilicate_idxs] # [dim, num_leaf * orig_num]
     scores = scores_dustbin[affilicate_idxs, :] # [num_leaf * orig_num, 1]
-    
+
     if n_pad < 0:
         descriptors = descriptors[:, :num_leaf * n_target_shape]
-        scores = scores[:num_leaf * n_target_shape, :] 
+        scores = scores[:num_leaf * n_target_shape, :]
     else:
         descriptors = torch.cat([descriptors, torch.ones(dim, n_pad * num_leaf)], dim=-1)
         scores = torch.cat([scores, torch.zeros(n_pad * num_leaf, 1)], dim=0)
 
     return descriptors, scores
-    
 
-def reshape_assign_matrix(assign_matrix, orig_shape2d, orig_shape3d, 
+
+def reshape_assign_matrix(assign_matrix, orig_shape2d, orig_shape3d,
                           shape2d, shape3d, pad=True, pad_val=0):
     """ Reshape assign matrix (from 2xk to nxm)"""
     assign_matrix = assign_matrix.long()
-    
+
     if pad:
         conf_matrix = torch.zeros(shape2d, shape3d, dtype=torch.int16)
-        
+
         valid = (assign_matrix[0] < shape2d) & (assign_matrix[1] < shape3d)
         assign_matrix = assign_matrix[:, valid]
 
@@ -221,12 +222,12 @@ def reshape_assign_matrix(assign_matrix, orig_shape2d, orig_shape3d,
         conf_matrix[:, orig_shape3d:] = pad_val
     else:
         conf_matrix = torch.zeros(orig_shape2d, orig_shape3d, dtype=torch.int16)
-        
+
         valid = (assign_matrix[0] < shape2d) & (assign_matrix[1] < shape3d)
         conf_matrix = conf_matrix[:, valid]
-        
+
         conf_matrix[assign_matrix[0], assign_matrix[1]] = 1
-    
+
     return conf_matrix
 
 
@@ -238,7 +239,7 @@ def get_image_crop_resize(image, box, resize_shape):
     """
     center = np.array([(box[0] + box[2]) / 2., (box[1] + box[3]) / 2.])
     scale = np.array([box[2] - box[0], box[3] - box[1]])
-    
+
     resize_h, resize_w = resize_shape
     trans_crop = get_affine_transform(center, scale, 0, [resize_w, resize_h])
     image_crop = cv2.warpAffine(image, trans_crop, (resize_w, resize_h), flags=cv2.INTER_LINEAR)
@@ -248,14 +249,14 @@ def get_image_crop_resize(image, box, resize_shape):
 
 
 def get_K_crop_resize(box, K_orig, resize_shape):
-    """Update K (crop an image according to the box, and resize the cropped image to resize_shape) 
+    """Update K (crop an image according to the box, and resize the cropped image to resize_shape)
     @param box: [x0, y0, x1, y1]
     @param K_orig: [3, 3] or [3, 4]
     @resize_shape: [h, w]
     """
     center = np.array([(box[0] + box[2]) / 2., (box[1] + box[3]) / 2.])
     scale = np.array([box[2] - box[0], box[3] - box[1]]) # w, h
-    
+
     resize_h, resize_w = resize_shape
     trans_crop = get_affine_transform(center, scale, 0, [resize_w, resize_h])
     trans_crop_homo = np.concatenate([trans_crop, np.array([[0, 0, 1]])], axis=0)
@@ -268,7 +269,7 @@ def get_K_crop_resize(box, K_orig, resize_shape):
 
     K_crop_homo = trans_crop_homo @ K_orig_homo # [3, 4]
     K_crop = K_crop_homo[:3, :3]
-    
+
     return K_crop, K_crop_homo
 
 
@@ -308,7 +309,7 @@ def video2img(video_path, outdir, downsample=1):
         ret, image = cap.read()
         if not ret:
             break
-        
+
         if index % downsample == 0:
             image_path = osp.join(outdir, '{}.png'.format(index // downsample))
             cv2.imwrite(image_path, image)
